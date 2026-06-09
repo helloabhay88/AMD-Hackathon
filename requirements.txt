@@ -1,0 +1,16 @@
+# Core dependencies
+torch
+transformers
+huggingface_hub
+
+# RAG & Agentic orchestration
+langchain
+langchain-community
+langgraph
+chromadb
+
+# Document parsing & Utilities
+pypdf
+requests
+pandas
+rich

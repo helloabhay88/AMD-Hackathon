@@ -1,0 +1,23 @@
+SECURED HOME MORTGAGE AGREEMENT
+
+This Secured Home Mortgage Agreement ("Agreement") is entered into on this 1st day of June, 2026, by and between the borrower, John Doe ("Borrower"), and Apex Lending Solutions ("Lender").
+
+SECTION 1: CUSTOMER IDENTIFICATION AND ONBOARDING
+In accordance with standard onboarding procedures, the Lender has completed customer identity verification. The Borrower's identity verification was completed electronically via email confirmation and verification of a standard utility bill showing proof of address. No physical or government-issued photo identification was collected or required during the remote digital onboarding session. The account was activated immediately following email verification.
+
+SECTION 2: INTEREST RATE AND ADJUSTMENTS
+The initial interest rate for this loan is established at 5.5% per annum. This is an adjustable-rate mortgage. The interest rate may fluctuate semi-annually based on index changes. However, the parties agree that the maximum adjustable interest rate cap on this mortgage agreement shall not exceed 9.75% per annum at any point during the lifetime of this loan.
+
+SECTION 3: PAYMENT TERMS AND GRACE PERIOD
+Monthly payments are due on the first (1st) day of each calendar month. The Lender shall allow a grace period of 10 calendar days. If the full monthly payment is not received by the Lender by 11:59 PM on the 10th day of the month, the payment will be deemed late, and a late fee will be automatically assessed on the 11th.
+
+SECTION 4: LATE FEES
+For any payment received after the grace period specified in Section 3, a flat late payment penalty fee of $75.00 shall be charged to the Borrower's account.
+
+SECTION 5: BORROWER'S RIGHT TO CANCEL (RESCISSION)
+The Lender hereby discloses that the Borrower has the right to cancel this mortgage transaction, without any penalty or obligation, within three (3) business days from the date of the execution of this Agreement. To exercise this right, the Borrower must send written, signed notice of cancellation to the Lender's official email address or physical office prior to midnight of the third business day.
+
+IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
+
+Borrower: John Doe (Signature)
+Lender Representative: Apex Lending Solutions (Signature)

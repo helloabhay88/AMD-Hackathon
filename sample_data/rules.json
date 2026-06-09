@@ -1,0 +1,32 @@
+[
+    {
+        "id": "COMP-001",
+        "name": "Interest Rate Cap Limit",
+        "category": "Lending Regulations",
+        "description": "The maximum interest rate cap on any adjustable-rate mortgage (ARM) or loan must not exceed 8.5% per annum at any point during the loan term."
+    },
+    {
+        "id": "COMP-002",
+        "name": "Late Payment Grace Period",
+        "category": "Consumer Protection",
+        "description": "The contract must specify a payment grace period of at least 15 calendar days from the payment due date before any late fee is assessed."
+    },
+    {
+        "id": "COMP-003",
+        "name": "Identity Verification (KYC)",
+        "category": "AML/KYC Compliance",
+        "description": "The agreement must explicitly state that the customer's identity was verified using a government-issued photo ID (e.g., driver's license or passport) prior to account activation."
+    },
+    {
+        "id": "COMP-004",
+        "name": "Late Fee Cap",
+        "category": "Consumer Protection",
+        "description": "The late payment fee must not exceed $50 or 5% of the overdue payment amount, whichever is lower."
+    },
+    {
+        "id": "COMP-005",
+        "name": "Right of Rescission (Cancellation)",
+        "category": "Lending Regulations",
+        "description": "The borrower must be granted a Right of Rescission allowing them to cancel the agreement without penalty by providing written notice within 3 business days of execution."
+    }
+]
