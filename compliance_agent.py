@@ -13,6 +13,9 @@ from langchain_community.vectorstores import Chroma
 # LangGraph Imports
 from langgraph.graph import StateGraph, END
 
+# Global variable to cache the local Hugging Face pipeline
+_local_hf_pipeline = None
+
 # --- STATE DEFINITION ---
 class AuditState(TypedDict):
     document_text: str
@@ -102,7 +105,7 @@ def run_llm_inference(state: AuditState, prompt: str) -> str:
         # Local Hugging Face execution (utilizes AMD GPU via ROCm PyTorch)
         try:
             global _local_hf_pipeline
-            if '_local_hf_pipeline' not in globals():
+            if _local_hf_pipeline is None:
                 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
                 print(f"Loading local HuggingFace model: {model_name}...")
                 
@@ -122,16 +125,25 @@ def run_llm_inference(state: AuditState, prompt: str) -> str:
                     model=model, 
                     tokenizer=tokenizer,
                     max_new_tokens=512,
-                    temperature=0.001
+                    temperature=0.001,
+                    return_full_text=False
                 )
             
+            # Format prompt using chat template if available for instruction-tuned models
+            try:
+                messages = [{"role": "user", "content": prompt}]
+                formatted_prompt = _local_hf_pipeline.tokenizer.apply_chat_template(
+                    messages, 
+                    tokenize=False, 
+                    add_generation_prompt=True
+                )
+            except Exception:
+                formatted_prompt = prompt
+
             # Run text generation
-            output = _local_hf_pipeline(prompt)
+            output = _local_hf_pipeline(formatted_prompt)
             generated_text = output[0]['generated_text']
-            # Remove prompt from output
-            if generated_text.startswith(prompt):
-                generated_text = generated_text[len(prompt):].strip()
-            return generated_text
+            return generated_text.strip()
         except Exception as e:
             return f'{{"status": "WARNING", "reason": "Local HF pipeline error: {str(e)}", "evidence": null}}'
             

@@ -2,6 +2,7 @@
 torch
 transformers
 huggingface_hub
+accelerate
 
 # RAG & Agentic orchestration
 langchain
