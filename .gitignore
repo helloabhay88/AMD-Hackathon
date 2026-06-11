@@ -3,7 +3,6 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 *.json
-*.md
 !README.md
 !requirements.txt
 !sample_data/rules.json
