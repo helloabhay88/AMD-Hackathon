@@ -345,7 +345,11 @@ Calculate a confidence score (0-100) based on:
 - 30-60: The evidence is only partially matching, or the reasoning doesn't fully support the status.
 - 0: The evidence quote is not found in the text at all (hallucinated), or the reasoning is completely contradictory.
 
-Provide your validation response in raw JSON format with the following fields:
+Provide your validation response in raw JSON format.
+
+IMPORTANT: The "validated_status" field MUST represent the final compliance status of the contract (PASS if the contract complies, FAIL if the contract violates the rule, WARNING if ambiguous, N/A if not mentioned). For example, if the auditor correctly identified a compliance violation (Proposed Status: FAIL) and you agree that the violation is correct, you MUST set "validated_status" to "FAIL". Do NOT set it to "PASS" to indicate that your validation check passed.
+
+Response JSON structure:
 {{
     "validated_status": "PASS" | "FAIL" | "WARNING" | "N/A",
     "is_evidence_verbatim": true | false,
