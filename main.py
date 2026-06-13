@@ -170,21 +170,11 @@ def main():
     parser = argparse.ArgumentParser(description="AI-Driven Audit & Compliance Validator")
     parser.add_argument("--doc", type=str, default="sample_data/sample_contract.txt", help="Path to text or PDF document")
     parser.add_argument("--rules", type=str, default="sample_data/rules.json", help="Path to JSON rules file")
-    parser.add_argument("--model_type", type=str, default="mock", choices=["mock", "hf", "openai", "gemini"], help="LLM Provider")
-    parser.add_argument("--model_name", type=str, default="", help="Hugging Face Model ID or Cloud Model Name")
-    parser.add_argument("--api_key", type=str, default="", help="API Key for cloud LLM services")
+    parser.add_argument("--model_name", type=str, default="Qwen/Qwen2.5-1.5B-Instruct", help="Hugging Face Model ID")
     parser.add_argument("--output", type=str, default="audit_report", help="Prefix of generated output report files")
     
     args = parser.parse_args()
     
-    # Read APIs from environment if not passed
-    api_key = args.api_key
-    if not api_key:
-        if args.model_type == "openai":
-            api_key = os.environ.get("OPENAI_API_KEY", "")
-        elif args.model_type == "gemini":
-            api_key = os.environ.get("GEMINI_API_KEY", "")
-            
     # Load document
     try:
         document_text = parse_document(args.doc)
@@ -208,13 +198,11 @@ def main():
         TextColumn("[progress.description]{task.description}"),
         transient=True
     ) as progress:
-        progress.add_task(description=f"Running LangGraph Compliance Agent using model_type: {args.model_type}...", total=None)
+        progress.add_task(description=f"Running LangGraph Compliance Agent using HuggingFace model: {args.model_name}...", total=None)
         reports = run_compliance_audit(
             document_text=document_text,
             rules=rules,
-            model_type=args.model_type,
-            model_name=args.model_name,
-            api_key=api_key
+            model_name=args.model_name
         )
         
     # Display table dashboard

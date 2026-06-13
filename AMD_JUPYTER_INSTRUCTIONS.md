@@ -98,22 +98,10 @@ Open the **`compliance_validator.ipynb`** notebook and locate the execution cell
    ```
 
 2. **Select LLM Execution Mode**:
-   - For **Full Offline GPU Execution**, set `MODEL_TYPE = "hf"` and select a lightweight model like Qwen:
-     ```python
-     MODEL_TYPE = "hf"
-     MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"  # Downloaded and run locally on ROCm
-     API_KEY = ""
-     ```
-   - For **Quick API Validation**, set `MODEL_TYPE = "gemini"` and provide your key:
-     ```python
-     MODEL_TYPE = "gemini"
-     MODEL_NAME = "gemini-1.5-flash"
-     API_KEY = "AIzaSy..."  # Your Google API Key
-     ```
-   - For **Deterministic Mock Verification** (no downloads or APIs):
-     ```python
-     MODEL_TYPE = "mock"
-     ```
+   Configure the local HuggingFace model:
+   ```python
+   MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"  # Downloaded and run locally on ROCm
+   ```
 
 3. **Run the Audit**:
    ```python
@@ -121,9 +109,7 @@ Open the **`compliance_validator.ipynb`** notebook and locate the execution cell
    audit_reports = run_compliance_audit(
        document_text=document_text,
        rules=rules,
-       model_type=MODEL_TYPE,
-       model_name=MODEL_NAME,
-       api_key=API_KEY
+       model_name=MODEL_NAME
    )
    ```
 

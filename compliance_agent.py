@@ -24,9 +24,7 @@ class AuditState(TypedDict):
     retrieved_context: List[str]
     current_result: Dict[str, Any]
     final_reports: List[Dict[str, Any]]
-    model_type: str
     model_name: str
-    api_key: str
 
 # --- UTILITY: JSON CLEANER ---
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
@@ -64,175 +62,53 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
 
 # --- LLM RUNNER WRAPPER ---
 def run_llm_inference(state: AuditState, prompt: str) -> str:
-    """Invokes the selected LLM (Local HF with ROCm, Gemini, OpenAI, or Mock)."""
-    model_type = state.get("model_type", "mock").lower()
-    model_name = state.get("model_name", "")
-    api_key = state.get("api_key", "")
+    """Invokes the local HuggingFace LLM with ROCm."""
+    model_name = state.get("model_name", "Qwen/Qwen2.5-1.5B-Instruct")
 
-    if model_type == "mock":
-        return get_mock_response(prompt)
-        
-    elif model_type == "openai":
-        try:
-            from openai import OpenAI
-            client = OpenAI(api_key=api_key)
-            response = client.chat.completions.create(
-                model=model_name if model_name else "gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0
+    # Local Hugging Face execution (utilizes AMD GPU via ROCm PyTorch)
+    try:
+        global _local_hf_pipeline
+        if _local_hf_pipeline is None:
+            from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+            print(f"Loading local HuggingFace model: {model_name}...")
+            
+            # Check for AMD GPU (ROCm)
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            print(f"ROCm CUDA status: {torch.cuda.is_available()} - Loading model on: {device}")
+            
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            # Load in 8-bit or 4-bit depending on resources if needed, otherwise default
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name, 
+                device_map="auto" if device == "cuda" else None,
+                torch_dtype=torch.float16 if device == "cuda" else torch.float32
             )
-            return response.choices[0].message.content
-        except Exception as e:
-            return f'{{"status": "WARNING", "reason": "OpenAI error: {str(e)}", "evidence": null}}'
-            
-    elif model_type == "gemini":
+            _local_hf_pipeline = pipeline(
+                "text-generation", 
+                model=model, 
+                tokenizer=tokenizer,
+                max_new_tokens=512,
+                temperature=0.001,
+                return_full_text=False
+            )
+        
+        # Format prompt using chat template if available for instruction-tuned models
         try:
-            # Simple HTTP request to avoid external package setup issues in Jupyter
-            import requests
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name if model_name else 'gemini-1.5-flash'}:generateContent?key={api_key}"
-            headers = {"Content-Type": "application/json"}
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.0, "responseMimeType": "application/json"}
-            }
-            res = requests.post(url, headers=headers, json=payload, timeout=30)
-            res_data = res.json()
-            return res_data["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception as e:
-            return f'{{"status": "WARNING", "reason": "Gemini API error: {str(e)}", "evidence": null}}'
-            
-    elif model_type == "hf":
-        # Local Hugging Face execution (utilizes AMD GPU via ROCm PyTorch)
-        try:
-            global _local_hf_pipeline
-            if _local_hf_pipeline is None:
-                from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-                print(f"Loading local HuggingFace model: {model_name}...")
-                
-                # Check for AMD GPU (ROCm)
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-                print(f"ROCm CUDA status: {torch.cuda.is_available()} - Loading model on: {device}")
-                
-                tokenizer = AutoTokenizer.from_pretrained(model_name)
-                # Load in 8-bit or 4-bit depending on resources if needed, otherwise default
-                model = AutoModelForCausalLM.from_pretrained(
-                    model_name, 
-                    device_map="auto" if device == "cuda" else None,
-                    torch_dtype=torch.float16 if device == "cuda" else torch.float32
-                )
-                _local_hf_pipeline = pipeline(
-                    "text-generation", 
-                    model=model, 
-                    tokenizer=tokenizer,
-                    max_new_tokens=512,
-                    temperature=0.001,
-                    return_full_text=False
-                )
-            
-            # Format prompt using chat template if available for instruction-tuned models
-            try:
-                messages = [{"role": "user", "content": prompt}]
-                formatted_prompt = _local_hf_pipeline.tokenizer.apply_chat_template(
-                    messages, 
-                    tokenize=False, 
-                    add_generation_prompt=True
-                )
-            except Exception:
-                formatted_prompt = prompt
+            messages = [{"role": "user", "content": prompt}]
+            formatted_prompt = _local_hf_pipeline.tokenizer.apply_chat_template(
+                messages, 
+                tokenize=False, 
+                add_generation_prompt=True
+            )
+        except Exception:
+            formatted_prompt = prompt
 
-            # Run text generation
-            output = _local_hf_pipeline(formatted_prompt)
-            generated_text = output[0]['generated_text']
-            return generated_text.strip()
-        except Exception as e:
-            return f'{{"status": "WARNING", "reason": "Local HF pipeline error: {str(e)}", "evidence": null}}'
-            
-    return get_mock_response(prompt)
-
-def get_mock_response(prompt: str) -> str:
-    """Deterministic mock responses for offline execution/testing."""
-    # Analyze prompt content to simulate LLM thinking
-    if "validator" in prompt.lower() or "validation" in prompt.lower():
-        # Validator mock logic
-        if "SECTION 1" in prompt and "photo ID" in prompt:
-            return json.dumps({
-                "validated_status": "FAIL",
-                "is_evidence_verbatim": True,
-                "confidence_score": 95,
-                "validation_reason": "Auditor identified correct clause. Verification is failed because utility bill is not a government photo ID."
-            })
-        elif "SECTION 2" in prompt and "interest rate" in prompt:
-            return json.dumps({
-                "validated_status": "FAIL",
-                "is_evidence_verbatim": True,
-                "confidence_score": 95,
-                "validation_reason": "Auditor verified correctly. The contract states 9.75% max cap, violating the limit of 8.5%."
-            })
-        elif "SECTION 3" in prompt and "grace period" in prompt:
-            return json.dumps({
-                "validated_status": "FAIL",
-                "is_evidence_verbatim": True,
-                "confidence_score": 95,
-                "validation_reason": "Auditor is correct. Contract states 10 calendar days grace period, which violates the 15-day requirement."
-            })
-        elif "SECTION 4" in prompt and "late payment penalty fee of $75.00" in prompt:
-            return json.dumps({
-                "validated_status": "FAIL",
-                "is_evidence_verbatim": True,
-                "confidence_score": 90,
-                "validation_reason": "Auditor correctly identified the fee of $75.00, which exceeds the limit of $50."
-            })
-        elif "SECTION 5" in prompt and "cancel this mortgage transaction" in prompt:
-            return json.dumps({
-                "validated_status": "PASS",
-                "is_evidence_verbatim": True,
-                "confidence_score": 98,
-                "validation_reason": "Auditor verified correctly. The contract grants 3 business days, matching the rule."
-            })
-        # Default validator pass
-        return json.dumps({
-            "validated_status": "PASS",
-            "is_evidence_verbatim": True,
-            "confidence_score": 90,
-            "validation_reason": "Auditor findings verified. Document is compliant."
-        })
-    else:
-        # Auditor mock logic
-        if "COMP-001" in prompt or "Interest Rate Cap Limit" in prompt:
-            return json.dumps({
-                "status": "FAIL",
-                "reason": "The mortgage agreement specifies an adjustable interest rate cap of 9.75% per annum, which exceeds the allowed regulatory limit of 8.5% per annum.",
-                "evidence": "the maximum adjustable interest rate cap on this mortgage agreement shall not exceed 9.75% per annum"
-            })
-        elif "COMP-002" in prompt or "Late Payment Grace Period" in prompt:
-            return json.dumps({
-                "status": "FAIL",
-                "reason": "The contract establishes a grace period of only 10 calendar days before a late fee is assessed, violating the consumer protection rule of at least 15 days.",
-                "evidence": "The Lender shall allow a grace period of 10 calendar days."
-            })
-        elif "COMP-003" in prompt or "Identity Verification (KYC)" in prompt:
-            return json.dumps({
-                "status": "FAIL",
-                "reason": "The document states that onboarding was completed using email and utility bill confirmation, and explicitly notes that no physical or government-issued photo identification was collected.",
-                "evidence": "No physical or government-issued photo identification was collected or required"
-            })
-        elif "COMP-004" in prompt or "Late Fee Cap" in prompt:
-            return json.dumps({
-                "status": "FAIL",
-                "reason": "The late fee specified in Section 4 is a flat penalty of $75.00, which violates the regulatory cap of $50.",
-                "evidence": "a flat late payment penalty fee of $75.00 shall be charged"
-            })
-        elif "COMP-005" in prompt or "Right of Rescission" in prompt:
-            return json.dumps({
-                "status": "PASS",
-                "reason": "Section 5 explicitly states that the borrower has the right to cancel the transaction without penalty within three business days from the execution of the agreement.",
-                "evidence": "Borrower has the right to cancel this mortgage transaction, without any penalty or obligation, within three (3) business days"
-            })
-        return json.dumps({
-            "status": "N/A",
-            "reason": "Rule is not mentioned or applicable in the provided contract context.",
-            "evidence": None
-        })
+        # Run text generation
+        output = _local_hf_pipeline(formatted_prompt)
+        generated_text = output[0]['generated_text']
+        return generated_text.strip()
+    except Exception as e:
+        return f'{{"status": "WARNING", "reason": "Local HF pipeline error: {str(e)}", "evidence": null}}'
 
 # --- RAG PIPELINE: CHROMA VECTOR STORE ---
 def setup_vector_db(document_text: str) -> Chroma:
@@ -435,9 +311,7 @@ def build_compliance_graph() -> StateGraph:
 def run_compliance_audit(
     document_text: str,
     rules: List[Dict[str, Any]],
-    model_type: str = "mock",
-    model_name: str = "",
-    api_key: str = ""
+    model_name: str = "Qwen/Qwen2.5-1.5B-Instruct"
 ) -> List[Dict[str, Any]]:
     """Initializes and executes the LangGraph workflow."""
     app = build_compliance_graph()
@@ -449,9 +323,7 @@ def run_compliance_audit(
         "retrieved_context": [],
         "current_result": {},
         "final_reports": [],
-        "model_type": model_type,
-        "model_name": model_name,
-        "api_key": api_key
+        "model_name": model_name
     }
     
     # Execute Graph
