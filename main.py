@@ -63,12 +63,22 @@ def save_reports(reports: List[Dict[str, Any]], base_path: str, doc_name: str):
         warnings = sum(1 for r in reports if r["status"] == "WARNING")
         nas = sum(1 for r in reports if r["status"] == "N/A")
         
+        # Calculate tokens
+        total_p = sum(r.get("prompt_tokens", 0) for r in reports)
+        total_g = sum(r.get("generated_tokens", 0) for r in reports)
+        total_t = total_p + total_g
+        
         f.write("## Executive Summary\n\n")
         f.write(f"- **Total Rules Checked**: {total}\n")
         f.write(f"- **Compliant (PASS)**: {passes} ✅\n")
         f.write(f"- **Violations (FAIL)**: {fails} ❌\n")
         f.write(f"- **Ambiguities (WARNING)**: {warnings} ⚠️\n")
-        f.write(f"- **Not Applicable (N/A)**: {nas} ➖\n\n")
+        f.write(f"- **Not Applicable (N/A)**: {nas} ➖\n")
+        if total_t > 0:
+            f.write(f"- **Total Prompt Tokens**: {total_p:,}\n")
+            f.write(f"- **Total Generated Tokens**: {total_g:,}\n")
+            f.write(f"- **Total Tokens Consumed**: {total_t:,}\n")
+        f.write("\n")
         
         f.write("## Detailed Audit Trail\n\n")
         for i, r in enumerate(reports):
@@ -79,6 +89,8 @@ def save_reports(reports: List[Dict[str, Any]], base_path: str, doc_name: str):
             f.write(f"- **Evaluation Status**: **{status_emoji}**\n")
             f.write(f"- **Confidence Score**: {r['confidence_score']}%\n")
             f.write(f"- **Auditor Reasoning**: {r['reason']}\n")
+            if r.get("prompt_tokens"):
+                f.write(f"- **Tokens Used**: {r.get('prompt_tokens', 0) + r.get('generated_tokens', 0):,} (Prompt: {r.get('prompt_tokens', 0):,}, Gen: {r.get('generated_tokens', 0):,})\n")
             if r["evidence"]:
                 f.write(f"- **Verbatim Evidence Quote**:\n  > \"{r['evidence'].strip()}\"\n")
             else:
@@ -99,8 +111,11 @@ def display_dashboard(reports: List[Dict[str, Any]], doc_name: str):
     warnings = sum(1 for r in reports if r["status"] == "WARNING")
     nas = sum(1 for r in reports if r["status"] == "N/A")
     
-    # Calculate avg confidence
+    # Calculate avg confidence and tokens
     avg_conf = sum(r["confidence_score"] for r in reports) / total if total > 0 else 0
+    total_p = sum(r.get("prompt_tokens", 0) for r in reports)
+    total_g = sum(r.get("generated_tokens", 0) for r in reports)
+    total_t = total_p + total_g
     
     # Header Panel
     console.print("\n")
@@ -119,6 +134,8 @@ def display_dashboard(reports: List[Dict[str, Any]], doc_name: str):
         f"[bold blue]N/A: {nas}[/bold blue] | "
         f"[bold white]Avg Confidence: {avg_conf:.1f}%[/bold white]"
     )
+    if total_t > 0:
+        summary_text += f" | [bold magenta]Total Tokens: {total_t:,}[/bold magenta]"
     console.print(Panel(summary_text, title="Audit Summary", expand=False))
     
     # Table Grid

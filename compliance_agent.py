@@ -26,6 +26,8 @@ class AuditState(TypedDict):
     final_reports: List[Dict[str, Any]]
     model_name: str
     validator_name: str
+    prompt_tokens: int
+    generated_tokens: int
 
 # --- UTILITY: JSON CLEANER ---
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
@@ -62,8 +64,10 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
         }
 
 # --- LLM RUNNER WRAPPER ---
-def run_llm_inference(model_name: str, prompt: str) -> str:
-    """Invokes the local HuggingFace LLM with ROCm."""
+def run_llm_inference(model_name: str, prompt: str) -> tuple[str, int, int]:
+    """Invokes the local HuggingFace LLM with ROCm.
+    Returns: (generated_text, prompt_tokens, generated_tokens)
+    """
     # Local Hugging Face execution (utilizes AMD GPU via ROCm PyTorch)
     try:
         global _local_hf_pipelines
@@ -107,9 +111,19 @@ def run_llm_inference(model_name: str, prompt: str) -> str:
         # Run text generation
         output = hf_pipeline(formatted_prompt)
         generated_text = output[0]['generated_text']
-        return generated_text.strip()
+        
+        # Calculate tokens
+        try:
+            p_tok = len(hf_pipeline.tokenizer.encode(formatted_prompt))
+            g_tok = len(hf_pipeline.tokenizer.encode(generated_text))
+        except Exception:
+            p_tok = 0
+            g_tok = 0
+            
+        return generated_text.strip(), p_tok, g_tok
     except Exception as e:
-        return f'{{"status": "WARNING", "reason": "Local HF pipeline error: {str(e)}", "evidence": null}}'
+        warning_msg = f'{{"status": "WARNING", "reason": "Local HF pipeline error: {str(e)}", "evidence": null}}'
+        return warning_msg, 0, 0
 
 # --- RAG PIPELINE: CHROMA VECTOR STORE ---
 def setup_vector_db(document_text: str) -> Chroma:
@@ -188,8 +202,12 @@ Provide your response in raw JSON format with the following fields:
 JSON:"""
 
     model_name = state.get("model_name", "Qwen/Qwen2.5-7B-Instruct")
-    llm_output = run_llm_inference(model_name, prompt)
+    llm_output, p_tok, g_tok = run_llm_inference(model_name, prompt)
     auditor_result = clean_and_parse_json(llm_output)
+    
+    # Temporarily store token metrics in current_result so they transfer to validator
+    auditor_result["_prompt_tokens"] = p_tok
+    auditor_result["_generated_tokens"] = g_tok
     
     return {
         "current_result": auditor_result
@@ -200,6 +218,10 @@ def validator_node(state: AuditState) -> Dict[str, Any]:
     current_rule = state["rules"][state["current_rule_index"]]
     context_str = "\n---\n".join(state["retrieved_context"])
     auditor_res = state["current_result"]
+    
+    # Retrieve the Auditor's tokens
+    auditor_p_tok = auditor_res.pop("_prompt_tokens", 0)
+    auditor_g_tok = auditor_res.pop("_generated_tokens", 0)
     
     prompt = f"""You are a compliance audit validator. Your task is to verify the findings of a primary auditor agent.
 
@@ -240,8 +262,12 @@ Response JSON structure:
 JSON:"""
 
     validator_name = state.get("validator_name", "Qwen/Qwen2.5-7B-Instruct")
-    llm_output = run_llm_inference(validator_name, prompt)
+    llm_output, val_p_tok, val_g_tok = run_llm_inference(validator_name, prompt)
     validator_res = clean_and_parse_json(llm_output)
+    
+    # Calculate rule total tokens
+    rule_p_tok = auditor_p_tok + val_p_tok
+    rule_g_tok = auditor_g_tok + val_g_tok
     
     # Merge reports
     report = {
@@ -254,15 +280,23 @@ JSON:"""
         "evidence": auditor_res.get("evidence", None),
         "confidence_score": validator_res.get("confidence_score", 50),
         "is_evidence_verbatim": validator_res.get("is_evidence_verbatim", False),
-        "validation_notes": validator_res.get("validation_reason", "")
+        "validation_notes": validator_res.get("validation_reason", ""),
+        "prompt_tokens": rule_p_tok,
+        "generated_tokens": rule_g_tok
     }
     
-    # Return appended list
+    # Accumulate running totals in state
+    total_p = state.get("prompt_tokens", 0) + rule_p_tok
+    total_g = state.get("generated_tokens", 0) + rule_g_tok
+    
+    # Return appended list and updated token state accumulators
     new_reports = list(state.get("final_reports", []))
     new_reports.append(report)
     
     return {
-        "final_reports": new_reports
+        "final_reports": new_reports,
+        "prompt_tokens": total_p,
+        "generated_tokens": total_g
     }
 
 # --- LANGGRAPH CONTROL ROUTING ---
@@ -331,9 +365,23 @@ def run_compliance_audit(
         "current_result": {},
         "final_reports": [],
         "model_name": model_name,
-        "validator_name": validator_name
+        "validator_name": validator_name,
+        "prompt_tokens": 0,
+        "generated_tokens": 0
     }
     
     # Execute Graph
     final_state = app.invoke(initial_state)
+    
+    # Print token usage summary
+    total_prompt = final_state.get("prompt_tokens", 0)
+    total_gen = final_state.get("generated_tokens", 0)
+    print("\n" + "="*40)
+    print("        TOKEN USAGE SUMMARY")
+    print("="*40)
+    print(f"Total Prompt Tokens:    {total_prompt:,}")
+    print(f"Total Generated Tokens: {total_gen:,}")
+    print(f"Total Tokens Consumed:  {total_prompt + total_gen:,}")
+    print("="*40 + "\n")
+    
     return final_state["final_reports"]
