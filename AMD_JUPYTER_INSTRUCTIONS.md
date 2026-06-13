@@ -98,9 +98,10 @@ Open the **`compliance_validator.ipynb`** notebook and locate the execution cell
    ```
 
 2. **Select LLM Execution Mode**:
-   Configure the local HuggingFace model:
+   Configure the local HuggingFace models for both Auditor and Validator nodes:
    ```python
-   MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"  # Downloaded and run locally on ROCm
+   MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"       # Auditor model (downloaded and run locally on ROCm)
+   VALIDATOR_NAME = "Qwen/Qwen2.5-7B-Instruct"   # Validator model (e.g., Qwen/Qwen2.5-14B-Instruct or Llama-3-8B)
    ```
 
 3. **Run the Audit**:
@@ -109,7 +110,8 @@ Open the **`compliance_validator.ipynb`** notebook and locate the execution cell
    audit_reports = run_compliance_audit(
        document_text=document_text,
        rules=rules,
-       model_name=MODEL_NAME
+       model_name=MODEL_NAME,
+       validator_name=VALIDATOR_NAME
    )
    ```
 

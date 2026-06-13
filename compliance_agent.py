@@ -13,8 +13,8 @@ from langchain_community.vectorstores import Chroma
 # LangGraph Imports
 from langgraph.graph import StateGraph, END
 
-# Global variable to cache the local Hugging Face pipeline
-_local_hf_pipeline = None
+# Global dictionary to cache multiple local Hugging Face pipelines
+_local_hf_pipelines = {}
 
 # --- STATE DEFINITION ---
 class AuditState(TypedDict):
@@ -25,6 +25,7 @@ class AuditState(TypedDict):
     current_result: Dict[str, Any]
     final_reports: List[Dict[str, Any]]
     model_name: str
+    validator_name: str
 
 # --- UTILITY: JSON CLEANER ---
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
@@ -61,14 +62,12 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
         }
 
 # --- LLM RUNNER WRAPPER ---
-def run_llm_inference(state: AuditState, prompt: str) -> str:
+def run_llm_inference(model_name: str, prompt: str) -> str:
     """Invokes the local HuggingFace LLM with ROCm."""
-    model_name = state.get("model_name", "Qwen/Qwen2.5-1.5B-Instruct")
-
     # Local Hugging Face execution (utilizes AMD GPU via ROCm PyTorch)
     try:
-        global _local_hf_pipeline
-        if _local_hf_pipeline is None:
+        global _local_hf_pipelines
+        if model_name not in _local_hf_pipelines:
             from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
             print(f"Loading local HuggingFace model: {model_name}...")
             
@@ -83,7 +82,7 @@ def run_llm_inference(state: AuditState, prompt: str) -> str:
                 device_map="auto" if device == "cuda" else None,
                 torch_dtype=torch.float16 if device == "cuda" else torch.float32
             )
-            _local_hf_pipeline = pipeline(
+            _local_hf_pipelines[model_name] = pipeline(
                 "text-generation", 
                 model=model, 
                 tokenizer=tokenizer,
@@ -92,10 +91,12 @@ def run_llm_inference(state: AuditState, prompt: str) -> str:
                 return_full_text=False
             )
         
+        hf_pipeline = _local_hf_pipelines[model_name]
+        
         # Format prompt using chat template if available for instruction-tuned models
         try:
             messages = [{"role": "user", "content": prompt}]
-            formatted_prompt = _local_hf_pipeline.tokenizer.apply_chat_template(
+            formatted_prompt = hf_pipeline.tokenizer.apply_chat_template(
                 messages, 
                 tokenize=False, 
                 add_generation_prompt=True
@@ -104,7 +105,7 @@ def run_llm_inference(state: AuditState, prompt: str) -> str:
             formatted_prompt = prompt
 
         # Run text generation
-        output = _local_hf_pipeline(formatted_prompt)
+        output = hf_pipeline(formatted_prompt)
         generated_text = output[0]['generated_text']
         return generated_text.strip()
     except Exception as e:
@@ -173,7 +174,10 @@ Evaluate the document context against the rule. Decide the Status:
 - WARNING: The document mentions something relevant but there is ambiguity, missing details, or a potential issue.
 - N/A: The rule is not mentioned or not applicable to this document.
 
-You MUST extract the EXACT verbatim sentence(s)/quote(s) from the document context that support your decision as "evidence". Do not modify even a single character. If no evidence exists, set it to null.
+CRITICAL RULES FOR AUDITING:
+1. CHECK FOR NEGATIVE CLAUSES/EXCEPTIONS: Pay extremely close attention to negative statements in the document context (e.g., "no", "not", "except", "without", "never", "no ... was collected/required"). If a rule requires an action (e.g., requiring government-issued photo ID) and the document states that this action was NOT taken or NOT required, the status MUST be FAIL.
+2. DO NOT ASSUME COMPLIANCE: Do not assume that general statements of "onboarding complete" or "verification complete" satisfy specific compliance rules if the required method (e.g., photo ID) was explicitly bypassed or not used.
+3. EXTRACT EVIDENCE EXACTLY VERBATIM: You MUST extract the EXACT verbatim sentence(s)/quote(s) from the document context that support your decision as "evidence". Do not modify even a single character, punctuation mark, or spacing. If no evidence exists, set it to null.
 
 Provide your response in raw JSON format with the following fields:
 {{
@@ -183,7 +187,8 @@ Provide your response in raw JSON format with the following fields:
 }}
 JSON:"""
 
-    llm_output = run_llm_inference(state, prompt)
+    model_name = state.get("model_name", "Qwen/Qwen2.5-7B-Instruct")
+    llm_output = run_llm_inference(model_name, prompt)
     auditor_result = clean_and_parse_json(llm_output)
     
     return {
@@ -213,7 +218,7 @@ Proposed Evidence Quote: {auditor_res.get('evidence', 'None')}
 
 Verify the following:
 1. Evidence Verification: Is the proposed evidence quote actually present verbatim in the retrieved document context? (True/False)
-2. Logic Verification: Does the proposed evidence quote and reasoning logically support the proposed status? (True/False)
+2. Logic Verification: Does the proposed evidence quote and reasoning logically support the proposed status? Pay special attention to negative constraints (e.g., "no photo ID collected"). If the auditor proposed PASS but the document context explicitly states that a required item/method was NOT collected/used, then the status is incorrect and must be FAIL.
 
 Calculate a confidence score (0-100) based on:
 - 100: Evidence is verbatim, and logic is watertight.
@@ -223,7 +228,7 @@ Calculate a confidence score (0-100) based on:
 
 Provide your validation response in raw JSON format.
 
-IMPORTANT: The "validated_status" field MUST represent the final compliance status of the contract (PASS if the contract complies, FAIL if the contract violates the rule, WARNING if ambiguous, N/A if not mentioned). For example, if the auditor correctly identified a compliance violation (Proposed Status: FAIL) and you agree that the violation is correct, you MUST set "validated_status" to "FAIL". Do NOT set it to "PASS" to indicate that your validation check passed.
+IMPORTANT: The "validated_status" field MUST represent the final compliance status of the contract (PASS if the contract complies, FAIL if the contract violates the rule, WARNING if ambiguous, N/A if not mentioned). For example, if the auditor correctly identified a compliance violation (Proposed Status: FAIL) and you agree that the violation is correct, you MUST set "validated_status" to "FAIL". If the auditor incorrectly passed the rule but you find that a requirement was violated or not met, you MUST override and set "validated_status" to "FAIL".
 
 Response JSON structure:
 {{
@@ -234,7 +239,8 @@ Response JSON structure:
 }}
 JSON:"""
 
-    llm_output = run_llm_inference(state, prompt)
+    validator_name = state.get("validator_name", "Qwen/Qwen2.5-7B-Instruct")
+    llm_output = run_llm_inference(validator_name, prompt)
     validator_res = clean_and_parse_json(llm_output)
     
     # Merge reports
@@ -311,7 +317,8 @@ def build_compliance_graph() -> StateGraph:
 def run_compliance_audit(
     document_text: str,
     rules: List[Dict[str, Any]],
-    model_name: str = "Qwen/Qwen2.5-1.5B-Instruct"
+    model_name: str = "Qwen/Qwen2.5-7B-Instruct",
+    validator_name: str = "Qwen/Qwen2.5-7B-Instruct"
 ) -> List[Dict[str, Any]]:
     """Initializes and executes the LangGraph workflow."""
     app = build_compliance_graph()
@@ -323,7 +330,8 @@ def run_compliance_audit(
         "retrieved_context": [],
         "current_result": {},
         "final_reports": [],
-        "model_name": model_name
+        "model_name": model_name,
+        "validator_name": validator_name
     }
     
     # Execute Graph
