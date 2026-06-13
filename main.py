@@ -187,7 +187,7 @@ def main():
     parser = argparse.ArgumentParser(description="AI-Driven Audit & Compliance Validator")
     parser.add_argument("--doc", type=str, default="sample_data/sample_contract.txt", help="Path to text or PDF document")
     parser.add_argument("--rules", type=str, default="sample_data/rules.json", help="Path to JSON rules file")
-    parser.add_argument("--model_name", type=str, default="Qwen/Qwen2.5-7B-Instruct", help="Hugging Face Model ID for Auditor")
+    parser.add_argument("--model_name", type=str, default="Qwen/Qwen2.5-14B-Instruct", help="Hugging Face Model ID for Auditor")
     parser.add_argument("--validator_name", type=str, default="Qwen/Qwen2.5-7B-Instruct", help="Hugging Face Model ID for Validator")
     parser.add_argument("--output", type=str, default="audit_report", help="Prefix of generated output report files")
     

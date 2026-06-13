@@ -201,7 +201,7 @@ Provide your response in raw JSON format with the following fields:
 }}
 JSON:"""
 
-    model_name = state.get("model_name", "Qwen/Qwen2.5-7B-Instruct")
+    model_name = state.get("model_name", "Qwen/Qwen2.5-14B-Instruct")
     llm_output, p_tok, g_tok = run_llm_inference(model_name, prompt)
     auditor_result = clean_and_parse_json(llm_output)
     
@@ -351,7 +351,7 @@ def build_compliance_graph() -> StateGraph:
 def run_compliance_audit(
     document_text: str,
     rules: List[Dict[str, Any]],
-    model_name: str = "Qwen/Qwen2.5-7B-Instruct",
+    model_name: str = "Qwen/Qwen2.5-14B-Instruct",
     validator_name: str = "Qwen/Qwen2.5-7B-Instruct"
 ) -> List[Dict[str, Any]]:
     """Initializes and executes the LangGraph workflow."""
