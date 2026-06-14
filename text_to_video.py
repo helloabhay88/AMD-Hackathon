@@ -53,14 +53,15 @@ def main():
             
         print("\n[*] Generating video frames. This will take a moment on your AMD GPU...")
         
-        # Run inference (default generates 6 seconds of video at 8 fps)
-        video_frames = pipe(
-            prompt=prompt,
-            num_videos_per_prompt=1,
-            num_inference_steps=50,  # 50 steps is standard for quality
-            guidance_scale=6.0,
-            generator=torch.manual_seed(42)
-        ).frames[0]
+        # Force standard math attention fallback to bypass ROCm FlashAttention bugs
+        with torch.backends.cuda.sdp_kernel(enable_flash=False, enable_math=True, enable_mem_efficient=False):
+            video_frames = pipe(
+                prompt=prompt,
+                num_videos_per_prompt=1,
+                num_inference_steps=50,  # 50 steps is standard for quality
+                guidance_scale=6.0,
+                generator=torch.manual_seed(42)
+            ).frames[0]
         
         # Save output video
         export_to_video(video_frames, output_filename, fps=8)
