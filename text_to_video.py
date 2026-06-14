@@ -44,16 +44,12 @@ def main():
     
     print(f"[*] Loading model: {model_id}...")
     try:
-        # Load the pipeline in bfloat16 (recommended for CogVideoX)
+        # Load the pipeline in float16 for high stability on ROCm
         pipe = CogVideoXPipeline.from_pretrained(
             model_id, 
-            torch_dtype=torch.bfloat16 if device == "cuda" else torch.float32
+            torch_dtype=torch.float16 if device == "cuda" else torch.float32
         )
         pipe = pipe.to(device)
-        
-        # Optimize memory usage (especially helpful for video models)
-        if device == "cuda":
-            pipe.enable_model_cpu_offload() # Safely manages VRAM allocation
             
         print("\n[*] Generating video frames. This will take a moment on your AMD GPU...")
         
