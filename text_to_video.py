@@ -44,10 +44,10 @@ def main():
     
     print(f"[*] Loading model: {model_id}...")
     try:
-        # Load the pipeline in float16 for high stability on ROCm
+        # Load the pipeline in bfloat16 (required for CogVideoX VAE stability)
         pipe = CogVideoXPipeline.from_pretrained(
             model_id, 
-            torch_dtype=torch.float16 if device == "cuda" else torch.float32
+            torch_dtype=torch.bfloat16 if device == "cuda" else torch.float32
         )
         pipe = pipe.to(device)
             
