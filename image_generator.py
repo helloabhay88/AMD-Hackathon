@@ -21,14 +21,26 @@ except ImportError:
         sys.exit(1)
 
 def main():
-    # Model configuration
+    # Model configuration (Stable Diffusion XL Base 1.0)
     model_id = "stabilityai/stable-diffusion-xl-base-1.0"
     
-    # Prompt for image generation
-    prompt = input("\nEnter prompt for image generation: \n> ")
+    print("\n" + "="*50)
+    print("      AMD GPU LOCAL IMAGE GENERATOR (SDXL)")
+    print("="*50)
+    
+    # 1. Prompt Input
+    print("\n[Tip] Be descriptive! E.g. 'A professional studio portrait of a man, sharp focus, 85mm lens, photorealistic'")
+    prompt = input("Enter positive prompt: \n> ")
     if not prompt.strip():
         prompt = "A high-tech digital laboratory with AMD Instinct MI300X servers glowing in neon blue, hyperrealistic, 8k resolution"
         print(f"Using default prompt: '{prompt}'")
+        
+    # 2. Negative Prompt Input
+    default_negative = "blurry, bad anatomy, deformed, extra limbs, low quality, disfigured, cartoon, drawing, painting, 3d render"
+    print(f"\n[Default Negative] '{default_negative}'")
+    negative_prompt = input("Enter custom negative prompt (or press Enter to use default): \n> ")
+    if not negative_prompt.strip():
+        negative_prompt = default_negative
         
     output_filename = "generated_image.png"
     
@@ -47,16 +59,24 @@ def main():
         )
         pipe = pipe.to(device)
         
-        # Enable memory efficient attention if available (helps speed up and reduce VRAM)
+        # Optimize memory usage
         if device == "cuda":
             try:
                 pipe.enable_attention_slicing()
             except Exception:
                 pass
                 
-        print("[*] Generating image... (This will take a few seconds on MI300X)")
+        print("\n[*] Generating image. Please wait...")
+        print("    - Steps: 35 (Higher quality)")
+        print("    - Guidance Scale: 7.5")
+        
         # Run inference
-        image = pipe(prompt=prompt).images[0]
+        image = pipe(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            num_inference_steps=35,
+            guidance_scale=7.5
+        ).images[0]
         
         # Save output image
         image.save(output_filename)
