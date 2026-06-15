@@ -120,7 +120,7 @@ def display_dashboard(reports: List[Dict[str, Any]], doc_name: str):
     # Header Panel
     console.print("\n")
     console.print(Panel(
-        Text(f"AI-DRIVEN COMPLIANCE AUDIT & COMPLIANCE VALIDATOR\nDocument: {doc_name}", style="bold white", justify="center"),
+        Text(f"AI-DRIVEN COMPLIANCE AUDIT & COMPLIANCE VALIDATOR\nDocument: {doc_name}", style="bold", justify="center"),
         subtitle="Powered by LangGraph & AMD ROCm",
         subtitle_align="right",
         style="cyan"
@@ -132,7 +132,7 @@ def display_dashboard(reports: List[Dict[str, Any]], doc_name: str):
         f"[bold red]FAIL: {fails}[/bold red] | "
         f"[bold yellow]WARNING: {warnings}[/bold yellow] | "
         f"[bold blue]N/A: {nas}[/bold blue] | "
-        f"[bold white]Avg Confidence: {avg_conf:.1f}%[/bold white]"
+        f"[bold]Avg Confidence: {avg_conf:.1f}%[/bold]"
     )
     if total_t > 0:
         summary_text += f" | [bold magenta]Total Tokens: {total_t:,}[/bold magenta]"
@@ -141,7 +141,7 @@ def display_dashboard(reports: List[Dict[str, Any]], doc_name: str):
     # Table Grid
     table = Table(title="Compliance Audit Trail Matrix", expand=True)
     table.add_column("Rule ID", style="dim", width=10)
-    table.add_column("Rule Name & Category", style="bold white")
+    table.add_column("Rule Name & Category", style="bold")
     table.add_column("Status", justify="center", width=12)
     table.add_column("Conf.", justify="right", width=8)
     table.add_column("Extracted Evidence & Reasoning")
@@ -168,7 +168,7 @@ def display_dashboard(reports: List[Dict[str, Any]], doc_name: str):
             conf_styled = f"[red]{conf}%[/red]"
             
         # Evidence / Reason block
-        evidence_text = f"[bold italic white]Quote:[/bold italic white] \"{r['evidence']}\"" if r['evidence'] else "[italic dim]No Quote[/italic dim]"
+        evidence_text = f"[bold italic]Quote:[/bold italic] \"{r['evidence']}\"" if r['evidence'] else "[italic dim]No Quote[/italic dim]"
         detail_block = f"{r['reason']}\n{evidence_text}"
         
         # Add to table
